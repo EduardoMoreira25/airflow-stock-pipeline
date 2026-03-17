@@ -6,8 +6,6 @@ __pycache__/
 
 # Environment and secrets
 .env
-*.env
-.env.*
 
 # AWS credentials — never ever
 .aws/
