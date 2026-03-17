@@ -1,0 +1,28 @@
+# Airflow runtime files
+logs/
+data/
+*.pyc
+__pycache__/
+
+# Environment and secrets
+.env
+*.env
+.env.*
+
+# AWS credentials — never ever
+.aws/
+*.pem
+*credentials*
+*secret*
+pipeline-policy.json  # contains ARNs — debatable, see note below
+
+# Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
