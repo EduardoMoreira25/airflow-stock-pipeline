@@ -5,7 +5,7 @@ This DAG is responsible for fetching every CIK from SEC
 First step in the pipeline
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
@@ -143,4 +143,10 @@ with DAG(
         )
         logger.info(f"Stored to s3://{s3_key}")
 
-        
+    # ============================================================
+    # TASKS
+    # ============================================================
+    task_get_and_store_cik = PythonOperator(
+        task_id="get_and_store_cik",
+        python_callable=fetch_and_store_sec_company_tickers,
+    )
