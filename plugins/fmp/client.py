@@ -22,7 +22,7 @@ class FMPClient:
         params['apikey'] = self.api_key
 
         #print(url)
-        #print(params)
+        #print(params)dbeav
 
         # Here, requests build the url correctly even if params is dict
         resp = requests.get(url, params=params)
