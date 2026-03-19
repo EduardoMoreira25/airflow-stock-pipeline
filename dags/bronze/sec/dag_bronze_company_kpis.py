@@ -32,7 +32,7 @@ def stream_zip_to_s3(**context):
     s3 = boto3.client('s3')
     now = datetime.now()
     # Storing zip directly in s3
-    s3_key = f"bronze/sec/company_facts/year={now.year}/month={now.month}/companyfacts.zip"
+    s3_key = f"bronze/sec/company_facts/year={now.year}/month={now.month:02d}/companyfacts.zip"
 
     with requests.get(url, headers=headers, stream=True) as response:
         response.raise_for_status()
