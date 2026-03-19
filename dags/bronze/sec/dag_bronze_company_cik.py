@@ -12,6 +12,7 @@ import logging
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from airflow.models import Variable
 from utils.dag_defaults import default_args, sla_miss_callback
 
 import boto3
