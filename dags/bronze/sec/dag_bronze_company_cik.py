@@ -127,7 +127,11 @@ with DAG(
 
         # Fetch
         url = "https://www.sec.gov/files/company_tickers.json"
-        response = requests.get(url)
+        headers = {
+            "User-Agent": Variable.get("SEC_USER_AGENT", default_var=None)  # SEC requires this
+        }
+
+        response = requests.get(url, headers=headers)
         response.raise_for_status()
         data = response.json()
         logger.info(f"Fetched {len(data)} company tickers from SEC")
