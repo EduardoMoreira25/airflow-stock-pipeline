@@ -46,16 +46,12 @@ def get_symbols():
 
 def fetch_and_store_prices(**context):
     """
-    Fetches OHLCV data for all symbols and stores to Postgres.
-
-    Pulled symbols from XCom (set by get_symbols task).
-    Uses the same logic as stock_prices_yfinance.py.
+    Fetches OHLCV data for all symbols in one batch request and stores to Postgres.
     """
     import yfinance as yf
     import pandas as pd
+    import time
 
-    # Pull symbols from the previous task via XCom
-    # ti = task instance — the object that lets us talk to Airflow
     ti = context["ti"]
     symbols = ti.xcom_pull(task_ids="get_symbols")
 
@@ -64,48 +60,18 @@ def fetch_and_store_prices(**context):
 
     logger.info(f"Processing {len(symbols)} symbols")
 
-    def fetch_single_stock(symbol):
-        """Fetch stock data for a single symbol."""
-        try:
-            ticker = yf.Ticker(symbol)
-            hist = ticker.history(period="1d")
-
-            if hist.empty:
-                return None
-
-            row = hist.iloc[-1]
-            info = ticker.info
-            market_cap = info.get("marketCap")
-            prev_close = info.get("previousClose") or info.get("regularMarketPreviousClose")
-            close_price = float(row["Close"])
-
-            change = None
-            change_percent = None
-            if prev_close and close_price:
-                change = round(close_price - prev_close, 4)
-                change_percent = round((change / prev_close) * 100, 4)
-
-            typical_price = (float(row["High"]) + float(row["Low"]) + close_price) / 3
-            vwap = round(typical_price, 4)
-
-            return {
-                "date": hist.index[-1].date(),
-                "open": round(float(row["Open"]), 4) if not pd.isna(row["Open"]) else None,
-                "high": round(float(row["High"]), 4) if not pd.isna(row["High"]) else None,
-                "low": round(float(row["Low"]), 4) if not pd.isna(row["Low"]) else None,
-                "close": round(close_price, 4),
-                "volume": int(row["Volume"]) if not pd.isna(row["Volume"]) else None,
-                "change": change,
-                "change_percent": change_percent,
-                "vwap": vwap,
-                "market_cap": market_cap,
-            }
-        except Exception as e:
-            logger.error(f"Error fetching {symbol}: {e}")
-            return None
+    # ── Batch download — one request instead of 1027 ──────────────────
+    raw = yf.download(
+        tickers=" ".join(symbols),
+        period="2d",          # 2d so we always have a previous close for change%
+        group_by="ticker",
+        auto_adjust=True,
+        threads=True,
+        progress=False,
+    )
 
     def insert_stock_price(conn, symbol, data):
-        """Upsert stock price record — same query as original script."""
+        """Upsert stock price record."""
         query = """
             INSERT INTO public.stock_prices_daily (
                 symbol, date, open, high, low, close, volume,
@@ -140,38 +106,77 @@ def fetch_and_store_prices(**context):
                 data.get("market_cap"),
             ))
 
-    # Main loop — same logic as original main()
     success = 0
     errors = 0
 
+    from airflow.providers.postgres.hooks.postgres import PostgresHook
+    hook = PostgresHook(postgres_conn_id="postgres_testes")
+    conn = hook.get_conn()
+
     try:
-        from airflow.providers.postgres.hooks.postgres import PostgresHook
-        hook = PostgresHook(postgres_conn_id="postgres_testes")
-        conn = hook.get_conn()
         for i, symbol in enumerate(symbols, 1):
             try:
-                logger.info(f"[{i}/{len(symbols)}] Fetching {symbol}...")
-                data = fetch_single_stock(symbol)
-
-                if data:
-                    insert_stock_price(conn, symbol, data)
-                    conn.commit()
-                    success += 1
-                    logger.info(f"  {symbol}: close={data['close']}, change={data['change_percent']}%")
+                # ── Extract this symbol's data from the batch result ───
+                if len(symbols) == 1:
+                    ticker_df = raw
                 else:
-                    logger.warning(f"  {symbol}: No data returned")
+                    if symbol not in raw.columns.get_level_values(0):
+                        logger.warning(f"[{i}/{len(symbols)}] {symbol}: Not found in batch result")
+                        errors += 1
+                        continue
+                    ticker_df = raw[symbol]
+
+                if ticker_df.empty or len(ticker_df) == 0:
+                    logger.warning(f"[{i}/{len(symbols)}] {symbol}: No data returned")
                     errors += 1
+                    continue
+
+                # Latest row
+                latest = ticker_df.iloc[-1]
+                close_price = float(latest["Close"])
+                date = ticker_df.index[-1].date()
+
+                # Change from previous close if we have 2 rows
+                change = None
+                change_percent = None
+                if len(ticker_df) >= 2:
+                    prev_close = float(ticker_df.iloc[-2]["Close"])
+                    change = round(close_price - prev_close, 4)
+                    change_percent = round((change / prev_close) * 100, 4)
+
+                # VWAP approximation
+                high = float(latest["High"]) if not pd.isna(latest["High"]) else None
+                low = float(latest["Low"]) if not pd.isna(latest["Low"]) else None
+                vwap = round((high + low + close_price) / 3, 4) if high and low else None
+
+                data = {
+                    "date": date,
+                    "open": round(float(latest["Open"]), 4) if not pd.isna(latest["Open"]) else None,
+                    "high": high,
+                    "low": low,
+                    "close": round(close_price, 4),
+                    "volume": int(latest["Volume"]) if not pd.isna(latest["Volume"]) else None,
+                    "change": change,
+                    "change_percent": change_percent,
+                    "vwap": vwap,
+                    "market_cap": None,  # not available in batch download
+                }
+
+                insert_stock_price(conn, symbol, data)
+                conn.commit()
+                success += 1
+                logger.info(f"[{i}/{len(symbols)}] {symbol}: close={data['close']}, change={data['change_percent']}%")
 
             except Exception as e:
-                logger.error(f"  {symbol}: ERROR - {e}")
+                logger.error(f"[{i}/{len(symbols)}] {symbol}: ERROR - {e}")
                 conn.rollback()
                 errors += 1
+
     finally:
         conn.close()
 
     logger.info(f"Complete — success: {success}, errors: {errors}, total: {len(symbols)}")
 
-    # ⭐ Raise if too many errors — fail the task loudly rather than silently
     if errors > 0 and success == 0:
         raise Exception(f"All {errors} symbols failed. Check logs.")
 
