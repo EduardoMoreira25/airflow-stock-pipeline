@@ -32,7 +32,7 @@ def get_symbols():
     Returns a list of symbols for downstream tasks via XCom.
     (We cover XCom properly in Topic 6 — for now just note the return value)
     """
-    from airflow.providers.postgres.hooks.postgres import PostgresHook
+    from airflow.providers.postgres.hooks.postgres import PostgresHook # type: ignore
     hook = PostgresHook(postgres_conn_id="postgres_testes")
     conn = hook.get_conn()
     try:
@@ -48,9 +48,9 @@ def fetch_and_store_prices(**context):
     """
     Fetches OHLCV data for all symbols in one batch request and stores to Postgres.
     """
-    import yfinance as yf
-    import pandas as pd
-    import time
+    import yfinance as yf # type: ignore
+    import pandas as pd # type: ignore
+    import time # type: ignore
     
     # Fix cache permission issue in Docker
     yf.set_tz_cache_location("/tmp/yfinance_cache")

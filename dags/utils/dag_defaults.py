@@ -12,7 +12,7 @@ def on_failure_callback(context):
     Logs a structured failure report — in production you'd
     send this to Slack or PagerDuty.
     """
-    from airflow.models import Variable
+    from airflow.models import Variable # type: ignore
 
     dag_id = context["dag"].dag_id
     task_id = context["task"].task_id
@@ -38,7 +38,7 @@ def on_failure_callback(context):
 
     # Send email alert using Airflow's built-in email utility
     try:
-        from airflow.utils.email import send_email
+        from airflow.utils.email import send_email # type: ignore
         alert_email = Variable.get("ALERT_EMAIL", default_var=None)
 
         if alert_email:
