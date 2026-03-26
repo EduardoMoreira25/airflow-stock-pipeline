@@ -5,7 +5,7 @@ This DAG is responsible for fetching every CIK from SEC
 First step in the pipeline
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import requests
 import logging

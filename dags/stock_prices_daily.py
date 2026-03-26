@@ -51,6 +51,9 @@ def fetch_and_store_prices(**context):
     import yfinance as yf
     import pandas as pd
     import time
+    
+    # Fix cache permission issue in Docker
+    yf.set_tz_cache_location("/tmp/yfinance_cache")
 
     ti = context["ti"]
     symbols = ti.xcom_pull(task_ids="get_symbols")

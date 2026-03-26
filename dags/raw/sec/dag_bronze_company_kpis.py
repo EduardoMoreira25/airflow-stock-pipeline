@@ -4,8 +4,7 @@
 This DAG is responsible for fetching every KPI available through the SEC API
 """
 # Python imports
-from datetime import datetime, timedelta
-import json
+from datetime import datetime
 import requests
 import logging
 # Airflow imports
@@ -43,7 +42,7 @@ def stream_zip_to_s3(**context):
 
 def extract_zip_to_bronze(**context):
     """Downloads zip from S3 to disk, extracts each JSON back to S3"""
-    import zipfile, os
+    import zipfile
 
     s3 = boto3.client('s3')
     now = datetime.utcnow()
@@ -74,6 +73,7 @@ def delete_tmp_zip(**context):
 # DAG
 # ============================================================
 
+
 with DAG(
     dag_id="monthly_sec_company_kpis",
     description="Fetches the KPIs for every company in SEC EDGAR database once per month",
@@ -84,24 +84,24 @@ with DAG(
     tags=["companies", "stocks", "monthly", "sec", "kpis"],
     sla_miss_callback=sla_miss_callback,
 ) as dag:
-    
-        task_stream_zip = PythonOperator(
-            task_id="stream_zip_to_s3",
-            python_callable=stream_zip_to_s3,
-        )
 
-        task_extract_zip = PythonOperator(
-            task_id="extract_zip_to_bronze",
-            python_callable=extract_zip_to_bronze,
-        )
+    task_stream_zip = PythonOperator(
+        task_id="stream_zip_to_s3",
+        python_callable=stream_zip_to_s3,
+    )
 
-        task_delete_tmp = PythonOperator(
-            task_id="delete_tmp_zip",
-            python_callable=delete_tmp_zip,
-        )
+    task_extract_zip = PythonOperator(
+        task_id="extract_zip_to_bronze",
+        python_callable=extract_zip_to_bronze,
+    )
 
-        # ==============================================
-        # Dependencies
-        # ==============================================
+    task_delete_tmp = PythonOperator(
+        task_id="delete_tmp_zip",
+        python_callable=delete_tmp_zip,
+    )
 
-        task_stream_zip >> task_extract_zip >> task_delete_tmp
+    # ==============================================
+    # Dependencies
+    # ==============================================
+
+    task_stream_zip >> task_extract_zip >> task_delete_tmp

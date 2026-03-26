@@ -1,5 +1,4 @@
-requests==2.31.0
-pandas==2.2.0
-pyiceberg==0.6.0
-yfinance==0.2.54
-boto3==1.42.68
+flake8==7.3.0
+mccabe==0.7.0
+pycodestyle==2.14.0
+pyflakes==3.4.0
