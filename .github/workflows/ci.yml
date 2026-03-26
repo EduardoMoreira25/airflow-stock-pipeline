@@ -19,5 +19,5 @@ jobs:
         with:
           python-version: "3.12"
       
-      - name: Lint with flake9
+      - name: Lint with flake8
         run: flake8 dags/raw/sec/dag_bronze_company_cik.py --max-line-length=120

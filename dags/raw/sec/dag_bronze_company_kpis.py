@@ -8,9 +8,9 @@ from datetime import datetime
 import requests
 import logging
 # Airflow imports
-from airflow import DAG
-from airflow.operators.python import PythonOperator
-from airflow.models import Variable
+from airflow import DAG # type: ignore
+from airflow.operators.python import PythonOperator # type: ignore
+from airflow.models import Variable # type: ignore
 from utils.dag_defaults import default_args, sla_miss_callback
 # S3 import
 import boto3
