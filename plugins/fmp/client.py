@@ -82,3 +82,11 @@ class FMPClient:
     def get_historical_mktcap(self,symbol,from_d,to_d):
         params = {'from': from_d, 'to':to_d}
         return self._get(f'historical-market-capitalization?symbol={symbol}',params=params)
+
+    # Full list of all tradeable stocks
+    def get_stock_list(self):
+        return self._get('stock-list')
+
+    # Company profile (raw array response, for backups)
+    def get_profile_raw(self,symbol):
+        return self._get(f'profile?symbol={symbol}')
