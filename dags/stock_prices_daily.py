@@ -46,12 +46,13 @@ def get_symbols():
 
 def fetch_and_store_prices(**context):
     """
-    Fetches OHLCV data for all symbols in one batch request and stores to Postgres.
+    Fetches OHLCV data for all symbols in batched requests and stores to Postgres.
+    Symbols are split into batches to avoid Yahoo Finance rate limits.
     """
+    import time
     import yfinance as yf # type: ignore
     import pandas as pd # type: ignore
-    import time # type: ignore
-    
+
     # Fix cache permission issue in Docker
     yf.set_tz_cache_location("/tmp/yfinance_cache")
 
@@ -63,15 +64,8 @@ def fetch_and_store_prices(**context):
 
     logger.info(f"Processing {len(symbols)} symbols")
 
-    # ── Batch download — one request instead of 1027 ──────────────────
-    raw = yf.download(
-        tickers=" ".join(symbols),
-        period="2d",          # 2d so we always have a previous close for change%
-        group_by="ticker",
-        auto_adjust=True,
-        threads=True,
-        progress=False,
-    )
+    BATCH_SIZE = 100
+    BATCH_SLEEP_SECONDS = 2
 
     def insert_stock_price(conn, symbol, data):
         """Upsert stock price record."""
@@ -117,63 +111,89 @@ def fetch_and_store_prices(**context):
     conn = hook.get_conn()
 
     try:
-        for i, symbol in enumerate(symbols, 1):
+        batches = [symbols[i:i + BATCH_SIZE] for i in range(0, len(symbols), BATCH_SIZE)]
+        logger.info(f"Split into {len(batches)} batches of up to {BATCH_SIZE} symbols each")
+
+        for batch_num, batch in enumerate(batches, 1):
+            logger.info(f"Downloading batch {batch_num}/{len(batches)} ({len(batch)} symbols)")
+
             try:
-                # ── Extract this symbol's data from the batch result ───
-                if len(symbols) == 1:
-                    ticker_df = raw
-                else:
-                    if symbol not in raw.columns.get_level_values(0):
-                        logger.warning(f"[{i}/{len(symbols)}] {symbol}: Not found in batch result")
+                raw = yf.download(
+                    tickers=" ".join(batch),
+                    start="2026-01-01",
+                    group_by="ticker",
+                    auto_adjust=True,
+                    threads=True,
+                    progress=False,
+                )
+            except Exception as e:
+                logger.error(f"Batch {batch_num} download failed: {e}")
+                errors += len(batch)
+                time.sleep(BATCH_SLEEP_SECONDS)
+                continue
+
+            for i, symbol in enumerate(batch, 1):
+                overall_i = (batch_num - 1) * BATCH_SIZE + i
+                try:
+                    # ── Extract this symbol's data from the batch result ───
+                    if len(batch) == 1:
+                        ticker_df = raw
+                    else:
+                        if symbol not in raw.columns.get_level_values(0):
+                            logger.warning(f"[{overall_i}/{len(symbols)}] {symbol}: Not found in batch result")
+                            errors += 1
+                            continue
+                        ticker_df = raw[symbol]
+
+                    if ticker_df.empty or len(ticker_df) == 0:
+                        logger.warning(f"[{overall_i}/{len(symbols)}] {symbol}: No data returned")
                         errors += 1
                         continue
-                    ticker_df = raw[symbol]
 
-                if ticker_df.empty or len(ticker_df) == 0:
-                    logger.warning(f"[{i}/{len(symbols)}] {symbol}: No data returned")
+                    # Latest row
+                    latest = ticker_df.iloc[-1]
+                    close_price = float(latest["Close"])
+                    date = ticker_df.index[-1].date()
+
+                    # Change from previous close if we have 2 rows
+                    change = None
+                    change_percent = None
+                    if len(ticker_df) >= 2:
+                        prev_close = float(ticker_df.iloc[-2]["Close"])
+                        change = round(close_price - prev_close, 4)
+                        change_percent = round((change / prev_close) * 100, 4)
+
+                    # VWAP approximation
+                    high = float(latest["High"]) if not pd.isna(latest["High"]) else None
+                    low = float(latest["Low"]) if not pd.isna(latest["Low"]) else None
+                    vwap = round((high + low + close_price) / 3, 4) if high and low else None
+
+                    data = {
+                        "date": date,
+                        "open": round(float(latest["Open"]), 4) if not pd.isna(latest["Open"]) else None,
+                        "high": high,
+                        "low": low,
+                        "close": round(close_price, 4),
+                        "volume": int(latest["Volume"]) if not pd.isna(latest["Volume"]) else None,
+                        "change": change,
+                        "change_percent": change_percent,
+                        "vwap": vwap,
+                        "market_cap": None,  # not available in batch download
+                    }
+
+                    insert_stock_price(conn, symbol, data)
+                    conn.commit()
+                    success += 1
+                    logger.info(f"[{overall_i}/{len(symbols)}] {symbol}: close={data['close']}, change={data['change_percent']}%")
+
+                except Exception as e:
+                    logger.error(f"[{overall_i}/{len(symbols)}] {symbol}: ERROR - {e}")
+                    conn.rollback()
                     errors += 1
-                    continue
 
-                # Latest row
-                latest = ticker_df.iloc[-1]
-                close_price = float(latest["Close"])
-                date = ticker_df.index[-1].date()
-
-                # Change from previous close if we have 2 rows
-                change = None
-                change_percent = None
-                if len(ticker_df) >= 2:
-                    prev_close = float(ticker_df.iloc[-2]["Close"])
-                    change = round(close_price - prev_close, 4)
-                    change_percent = round((change / prev_close) * 100, 4)
-
-                # VWAP approximation
-                high = float(latest["High"]) if not pd.isna(latest["High"]) else None
-                low = float(latest["Low"]) if not pd.isna(latest["Low"]) else None
-                vwap = round((high + low + close_price) / 3, 4) if high and low else None
-
-                data = {
-                    "date": date,
-                    "open": round(float(latest["Open"]), 4) if not pd.isna(latest["Open"]) else None,
-                    "high": high,
-                    "low": low,
-                    "close": round(close_price, 4),
-                    "volume": int(latest["Volume"]) if not pd.isna(latest["Volume"]) else None,
-                    "change": change,
-                    "change_percent": change_percent,
-                    "vwap": vwap,
-                    "market_cap": None,  # not available in batch download
-                }
-
-                insert_stock_price(conn, symbol, data)
-                conn.commit()
-                success += 1
-                logger.info(f"[{i}/{len(symbols)}] {symbol}: close={data['close']}, change={data['change_percent']}%")
-
-            except Exception as e:
-                logger.error(f"[{i}/{len(symbols)}] {symbol}: ERROR - {e}")
-                conn.rollback()
-                errors += 1
+            if batch_num < len(batches):
+                logger.info(f"Batch {batch_num} done. Sleeping {BATCH_SLEEP_SECONDS}s before next batch...")
+                time.sleep(BATCH_SLEEP_SECONDS)
 
     finally:
         conn.close()
