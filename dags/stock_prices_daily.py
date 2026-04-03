@@ -33,7 +33,7 @@ def get_symbols():
     (We cover XCom properly in Topic 6 — for now just note the return value)
     """
     from airflow.providers.postgres.hooks.postgres import PostgresHook # type: ignore
-    hook = PostgresHook(postgres_conn_id="postgres_testes")
+    hook = PostgresHook(postgres_conn_id="postgres_financial")
     conn = hook.get_conn()
     try:
         with conn.cursor() as cur:
@@ -107,7 +107,7 @@ def fetch_and_store_prices(**context):
     errors = 0
 
     from airflow.providers.postgres.hooks.postgres import PostgresHook
-    hook = PostgresHook(postgres_conn_id="postgres_testes")
+    hook = PostgresHook(postgres_conn_id="postgres_financial")
     conn = hook.get_conn()
 
     try:
