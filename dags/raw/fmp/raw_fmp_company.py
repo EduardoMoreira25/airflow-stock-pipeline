@@ -16,14 +16,16 @@ Backup layout:
 from datetime import datetime, timedelta
 import logging
 
+from airflow.models import Variable
 from airflow import DAG  # type: ignore
 from airflow.operators.python import PythonOperator  # type: ignore
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator  # type: ignore
 from utils.dag_defaults import daily_args, sla_miss_callback
 
 
 logger = logging.getLogger(__name__)
 
-BACKUP_BASE = "/opt/airflow/backups/fmp/raw/companies"
+BACKUP_BASE = Variable.get("BACKUP_COMPANIES")
 
 
 # ============================================================
@@ -158,4 +160,10 @@ with DAG(
         execution_timeout=timedelta(hours=4),
     )
 
-    task_stock_list >> task_profiles
+    task_trigger_bronze = TriggerDagRunOperator(
+        task_id="trigger_bronze_fmp_company",
+        trigger_dag_id="bronze_fmp_company",
+        wait_for_completion=True,
+    )
+
+    task_stock_list >> task_profiles >> task_trigger_bronze

@@ -91,7 +91,7 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
     - ${AIRFLOW_PROJ_DIR:-.}/data:/opt/airflow/data
     - ./requirements.txt:/requirements.txt
-    - /mnt/ssd/backups:/opt/airflow/backups # Backups directory for raw json
+    - /mnt/ssd/backups:/opt/airflow/Backups # Backups directory for raw json
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on

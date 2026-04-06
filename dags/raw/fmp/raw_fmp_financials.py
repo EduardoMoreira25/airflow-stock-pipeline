@@ -19,14 +19,16 @@ Backup layout:
 from datetime import datetime, timedelta
 import logging
 
+from airflow.models import Variable
 from airflow import DAG  # type: ignore
 from airflow.operators.python import PythonOperator  # type: ignore
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator  # type: ignore
 from utils.dag_defaults import daily_args, sla_miss_callback
 
 
 logger = logging.getLogger(__name__)
 
-BACKUP_BASE = "/opt/airflow/backups/fmp/raw"
+BACKUP_BASE = Variable.get("BACKUP_FINANCIALS")
 
 # (folder_name, client_method_name)
 FINANCIAL_STATEMENTS = [
@@ -50,7 +52,7 @@ def get_symbols():
     conn = hook.get_conn()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT symbol FROM companies ORDER BY symbol")
+            cur.execute("SELECT symbol FROM gold.g_company ORDER BY symbol")
             symbols = [row[0] for row in cur.fetchall()]
         logger.info(f"Found {len(symbols)} symbols to process")
         return symbols
@@ -66,7 +68,7 @@ def fetch_and_store_financials(**context):
     import json
     import os
     import time
-    from datetime import datetime as dt
+    from datetime import datetime as dt, timezone
 
     from fmp.client import FMPClient  # type: ignore
 
@@ -165,7 +167,7 @@ def fetch_and_store_financials(**context):
             # ── Revenue segments ──────────────────────────────────────────────
             seg_backup_dir = os.path.join(BACKUP_BASE, "revenue_segments", f"symbol={symbol}")
             seg_existing = _existing_dates(seg_backup_dir)
-            now_ts = dt.utcnow().isoformat()
+            now_ts = dt.now(timezone.utc).isoformat()
 
             try:
                 geo_raw = client.get_geographic_segment(symbol)
@@ -238,7 +240,12 @@ with DAG(
         retries=3,
         retry_delay=timedelta(minutes=5),
         retry_exponential_backoff=True,
-        execution_timeout=timedelta(hours=3),
     )
 
-    task_get_symbols >> task_fetch_and_store
+    task_trigger_bronze = TriggerDagRunOperator(
+        task_id="trigger_bronze_fmp_financials",
+        trigger_dag_id="bronze_fmp_financials",
+        wait_for_completion=False,
+    )
+
+    task_get_symbols >> task_fetch_and_store >> task_trigger_bronze

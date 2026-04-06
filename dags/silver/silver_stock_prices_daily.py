@@ -1,4 +1,4 @@
-# dags/stock_prices_daily.py
+# dags/silver/silver_stock_prices_daily.py
 
 """
 Stock Prices Daily DAG
@@ -37,7 +37,7 @@ def get_symbols():
     conn = hook.get_conn()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT symbol FROM companies ORDER BY symbol")
+            cur.execute("SELECT symbol FROM gold.companies ORDER BY symbol")
             symbols = [row[0] for row in cur.fetchall()]
         logger.info(f"Found {len(symbols)} symbols to process")
         return symbols  # Airflow stores this automatically as an XCom value
@@ -65,12 +65,12 @@ def fetch_and_store_prices(**context):
     logger.info(f"Processing {len(symbols)} symbols")
 
     BATCH_SIZE = 100
-    BATCH_SLEEP_SECONDS = 2
+    BATCH_SLEEP_SECONDS = 20
 
     def insert_stock_price(conn, symbol, data):
         """Upsert stock price record."""
         query = """
-            INSERT INTO public.stock_prices_daily (
+            INSERT INTO silver.stock_prices_daily (
                 symbol, date, open, high, low, close, volume,
                 change, change_percent, vwap, market_cap
             )
@@ -120,7 +120,7 @@ def fetch_and_store_prices(**context):
             try:
                 raw = yf.download(
                     tickers=" ".join(batch),
-                    start="2026-01-01",
+                    start="2026-01-01", #period="5d"
                     group_by="ticker",
                     auto_adjust=True,
                     threads=True,
@@ -207,7 +207,7 @@ def fetch_and_store_prices(**context):
 # DAG
 # ============================================================
 with DAG(
-    dag_id="stock_prices_daily",
+    dag_id="silver_stock_prices_daily",
     description="Fetches daily OHLCV data via yfinance, stores to Postgres",
     schedule="30 21 * * 1-5",
     start_date=datetime(2024, 1, 1),
