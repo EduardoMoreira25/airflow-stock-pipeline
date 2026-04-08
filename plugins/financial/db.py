@@ -2,7 +2,7 @@
 
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-CON_PARAM = 'postgres_testes'
+CON_PARAM = 'postgres_financial'
 
 def get_companies():
     hook = PostgresHook(postgres_conn_id=CON_PARAM)
