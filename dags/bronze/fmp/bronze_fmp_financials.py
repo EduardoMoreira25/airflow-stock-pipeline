@@ -22,6 +22,7 @@ Target tables (already exist):
 from datetime import datetime, timedelta
 import logging
 
+from airflow.models import Variable
 from airflow import DAG  # type: ignore
 from airflow.operators.python import PythonOperator  # type: ignore
 from utils.dag_defaults import daily_args, sla_miss_callback
@@ -29,7 +30,7 @@ from utils.dag_defaults import daily_args, sla_miss_callback
 
 logger = logging.getLogger(__name__)
 
-BACKUP_BASE = "/opt/airflow/backups/fmp/raw"
+BACKUP_BASE = Variable.get("BACKUP_FINANCIALS")
 
 # Columns to extract from each JSON record (order matches INSERT statement).
 # Excludes JSON-only fields: cik, accepted_date, created_at, updated_at.

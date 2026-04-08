@@ -19,6 +19,26 @@ class DBConnector:
         finally:
             cls.get_pool().putconn(conn) 
 
+    def get_companies(cls,query='',params=None):
+        """
+        Get desired list of companies
+        """
+        hook = PostgresHook(postgres_conn_id='postgres_financial')
+        conn = hook.get_conn()
+        try:
+            if query == '':    
+                query = "SELECT symbol FROM gold.g_company WHERE exchange in ('NYSE', 'NASDAQ', 'AMEX') ORDER BY symbol"
+                with conn.cursor() as cur:
+                    cur.execute(query,params)
+                    return cur.fetchall()
+            else:
+                with conn.cursor() as cur:
+                    cur.execute(query,params)
+                    return cur.fetchall()
+        finally:
+            cls.get_pool().putconn(conn)
+
+
     @staticmethod
     def query(cls,query,params=None):
         """

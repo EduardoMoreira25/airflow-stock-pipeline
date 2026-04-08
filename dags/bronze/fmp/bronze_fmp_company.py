@@ -20,6 +20,7 @@ Target:
 from datetime import datetime, timedelta
 import logging
 
+from airflow.models import Variable
 from airflow import DAG  # type: ignore
 from airflow.operators.python import PythonOperator  # type: ignore
 from utils.dag_defaults import daily_args, sla_miss_callback
@@ -27,7 +28,7 @@ from utils.dag_defaults import daily_args, sla_miss_callback
 
 logger = logging.getLogger(__name__)
 
-PROFILE_BASE = "/opt/airflow/backups/fmp/raw/companies/profile"
+PROFILE_BASE = Variable.get("BACKUP_PROFILE")
 
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS bronze.companies (

@@ -36,19 +36,8 @@ BACKUP_BASE = Variable.get("BACKUP_SEGMENTS")
 # ============================================================
 
 def get_symbols():
-    """Fetch all ticker symbols from the companies table."""
-    from airflow.providers.postgres.hooks.postgres import PostgresHook  # type: ignore
-
-    hook = PostgresHook(postgres_conn_id="postgres_financial")
-    conn = hook.get_conn()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT symbol FROM gold.g_company ORDER BY symbol")
-            symbols = [row[0] for row in cur.fetchall()]
-        logger.info(f"Found {len(symbols)} symbols to process")
-        return symbols
-    finally:
-        conn.close()
+    from financial.db import get_companies
+    return get_companies()
 
 
 def fetch_and_store_segments(**context):
