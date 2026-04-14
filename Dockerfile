@@ -5,8 +5,10 @@ RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     python3-dev \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 USER airflow
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN /home/airflow/.local/bin/pip install --upgrade pip \
+    && /home/airflow/.local/bin/pip install --no-cache-dir -r requirements.txt

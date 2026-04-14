@@ -45,7 +45,7 @@ PERIODS = ["quarter", "annual"]
 # ============================================================
 
 def get_symbols():
-    from financial.db import get_companies
+    from financial.db import get_companies # type: ignore
     return get_companies()
 
 

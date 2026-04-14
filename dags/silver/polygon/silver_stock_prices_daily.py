@@ -12,6 +12,7 @@ import logging
 
 from airflow import DAG # type: ignore
 from airflow.operators.python import PythonOperator # type: ignore
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator  # type: ignore
 from utils.dag_defaults import daily_args, sla_miss_callback
 
 
@@ -214,7 +215,7 @@ def fetch_and_store_prices(**context):
 with DAG(
     dag_id="silver_stock_prices_daily",
     description="Fetches daily OHLCV data via Polygon.io, stores to Postgres",
-    schedule="45 21 * * 1-5",
+    schedule="0 8 * * 2-6",
     start_date=datetime(2024, 1, 1),
     catchup=False,
     default_args=daily_args,
@@ -236,4 +237,10 @@ with DAG(
         execution_timeout=timedelta(hours=1),
     )
 
-    task_get_symbols >> task_fetch_and_store
+    task_trigger_dbt_mkt_cap = TriggerDagRunOperator(
+        task_id="dbt_market_cap_update",
+        trigger_dag_id="dbt_macro_update_market_cap",
+        wait_for_completion=True,
+    )
+
+    task_get_symbols >> task_fetch_and_store >> task_trigger_dbt_mkt_cap

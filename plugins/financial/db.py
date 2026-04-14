@@ -8,7 +8,6 @@ def get_companies():
     hook = PostgresHook(postgres_conn_id=CON_PARAM)
     result = hook.get_records("""
         SELECT symbol FROM gold.g_company
-        WHERE exchange IN ('NYSE', 'NASDAQ', 'AMEX')
         ORDER BY symbol
     """)
     return [row[0] for row in result]

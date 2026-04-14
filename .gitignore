@@ -3,6 +3,7 @@ logs/
 data/
 *.pyc
 __pycache__/
+*log
 
 # Environment and secrets
 .env
