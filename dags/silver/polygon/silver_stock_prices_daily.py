@@ -127,6 +127,8 @@ def fetch_and_store_prices(**context):
                 "change":         None,
                 "vwap":           round(float(vwap),   4) if vwap   is not None else None,
                 "market_cap":     None,
+                "year":           trading_date.year,
+                "month":          trading_date.month,
             })
 
         return rows
@@ -137,11 +139,11 @@ def fetch_and_store_prices(**context):
         query = """
             INSERT INTO silver.s_stock_prices_daily (
                 symbol, date, open, high, low, close, volume,
-                change, vwap, market_cap
+                change, vwap, market_cap, year, month
             )
             VALUES (
                 %(symbol)s, %(date)s, %(open)s, %(high)s, %(low)s, %(close)s,
-                %(volume)s, %(change)s, %(vwap)s, %(market_cap)s
+                %(volume)s, %(change)s, %(vwap)s, %(market_cap)s, %(year)s, %(month)s
             )
             ON CONFLICT (symbol, date)
             DO UPDATE SET
@@ -153,6 +155,8 @@ def fetch_and_store_prices(**context):
                 change            = EXCLUDED.change,
                 vwap              = EXCLUDED.vwap,
                 market_cap        = EXCLUDED.market_cap,
+                year              = EXCLUDED.year,
+                month             = EXCLUDED.month,
                 _loaded_at        = NOW()
         """
         with conn.cursor() as cur:

@@ -13,8 +13,14 @@ Pipeline:
 Source:
     {BACKUP_STOCK_PRICES}/symbol={SYMBOL}/{YYYY-MM-DD}.json
 
-Target:
-    postgres_financial → bronze.stock_prices_daily
+Target table schema:
+    symbol       text
+    date         date
+    payload      jsonb
+    _loaded_at   timestamp
+    _source_file text
+
+PK: (symbol, date)
 """
 
 from datetime import datetime, timedelta
@@ -28,14 +34,6 @@ from utils.dag_defaults import daily_args, sla_miss_callback
 
 logger = logging.getLogger(__name__)
 
-INSERT_SQL = """
-    INSERT INTO bronze.stock_prices_daily
-        (symbol, date, open, high, low, close, volume,
-         change, change_percent, vwap, market_cap, _loaded_at, _source_file)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)
-    ON CONFLICT (symbol, date) DO NOTHING
-"""
-
 
 # ============================================================
 # TASK FUNCTIONS
@@ -43,8 +41,11 @@ INSERT_SQL = """
 
 def load_prices():
     """
-    Walk the stock prices backup directory. For each symbol, skip files
-    at or before the latest date already in the table, insert the rest.
+    Walk the stock prices backup directory. For each symbol:
+    1. Query the latest date already loaded in bronze.
+    2. Skip any files at or before that date.
+    3. Insert newer records as payload jsonb.
+    Idempotent via ON CONFLICT (symbol, date) DO NOTHING.
     """
     import json
     import os
@@ -53,20 +54,26 @@ def load_prices():
 
     BACKUP_BASE = Variable.get("BACKUP_STOCK_PRICES")
 
+    insert_sql = """
+        INSERT INTO bronze.stock_prices_daily (symbol, date, payload, _loaded_at, _source_file)
+        VALUES (%s, %s, %s::jsonb, NOW(), %s)
+        ON CONFLICT (symbol, date) DO NOTHING
+    """
+
     hook = PostgresHook(postgres_conn_id="postgres_financial")
     conn = hook.get_conn()
 
     inserted = skipped = errors = 0
 
     try:
-        # Latest loaded date per symbol
+        # ── Latest loaded date per symbol ──────────────────────────────────
         max_dates = {}
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT symbol, MAX(date) FROM bronze.stock_prices_daily GROUP BY symbol"
             )
             for symbol, max_date in cur.fetchall():
-                max_dates[symbol] = max_date
+                max_dates[symbol] = max_date  # date object
 
         logger.info(f"{len(max_dates)} symbols already have data in bronze.stock_prices_daily")
 
@@ -78,13 +85,15 @@ def load_prices():
                 continue
             symbol = symbol_dir[len("symbol="):]
             sym_path = os.path.join(BACKUP_BASE, symbol_dir)
-            max_date = max_dates.get(symbol)
+            max_date = max_dates.get(symbol)  # None if symbol not yet in DB
 
             for filename in sorted(os.listdir(sym_path)):
                 if not filename.endswith(".json"):
                     continue
 
-                file_date_str = filename[:-5]
+                file_date_str = filename[:-5]  # YYYY-MM-DD
+
+                # Skip files already covered by max_date
                 if max_date and file_date_str <= str(max_date):
                     skipped += 1
                     continue
@@ -96,29 +105,20 @@ def load_prices():
 
                     rec = raw[0] if isinstance(raw, list) and raw else raw
 
-                    # Handle both old files (change_percent) and API camelCase
-                    change_pct = rec.get("change_percent") or rec.get("changePercent")
+                    # Normalise camelCase keys from older files
+                    if "changePercent" in rec:
+                        rec["change_percent"] = rec.pop("changePercent")
+
+                    date_str = rec.get("date") or file_date_str
+                    payload  = json.dumps(rec)
 
                     with conn.cursor() as cur:
-                        cur.execute(INSERT_SQL, (
-                            rec.get("symbol") or symbol,
-                            rec.get("date") or file_date_str,
-                            rec.get("open"),
-                            rec.get("high"),
-                            rec.get("low"),
-                            rec.get("close"),
-                            rec.get("volume"),
-                            rec.get("change"),
-                            change_pct,
-                            rec.get("vwap"),
-                            rec.get("market_cap"),
-                            source_file,
-                        ))
+                        cur.execute(insert_sql, (symbol, date_str, payload, source_file))
                         was_inserted = cur.rowcount > 0
 
                     conn.commit()
                     inserted += was_inserted
-                    skipped += not was_inserted
+                    skipped  += not was_inserted
 
                 except Exception as exc:
                     logger.error(f"{source_file}: ERROR — {exc}")
