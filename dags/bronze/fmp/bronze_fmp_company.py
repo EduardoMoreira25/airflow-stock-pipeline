@@ -166,7 +166,6 @@ with DAG(
         python_callable=load_profiles,
         retries=3,
         retry_delay=timedelta(minutes=3),
-        execution_timeout=timedelta(hours=2),
     )
 
     task_create_table >> task_load_profiles

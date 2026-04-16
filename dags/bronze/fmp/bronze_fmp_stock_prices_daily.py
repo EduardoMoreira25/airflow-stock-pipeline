@@ -153,5 +153,4 @@ with DAG(
         python_callable=load_prices,
         retries=2,
         retry_delay=timedelta(minutes=5),
-        execution_timeout=timedelta(hours=4),
     )

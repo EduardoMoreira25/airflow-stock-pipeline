@@ -363,7 +363,6 @@ with DAG(
         python_callable=load_balance,
         retries=2,
         retry_delay=timedelta(minutes=3),
-        execution_timeout=timedelta(hours=2),
     )
 
     task_load_income = PythonOperator(
@@ -371,7 +370,6 @@ with DAG(
         python_callable=load_income,
         retries=2,
         retry_delay=timedelta(minutes=3),
-        execution_timeout=timedelta(hours=2),
     )
 
     task_load_cashflow = PythonOperator(
@@ -379,7 +377,6 @@ with DAG(
         python_callable=load_cashflow,
         retries=2,
         retry_delay=timedelta(minutes=3),
-        execution_timeout=timedelta(hours=2),
     )
 
     task_load_segments = PythonOperator(
@@ -387,7 +384,6 @@ with DAG(
         python_callable=load_segments,
         retries=2,
         retry_delay=timedelta(minutes=3),
-        execution_timeout=timedelta(hours=2),
     )
 
     task_load_balance >> task_load_income >> task_load_cashflow >> task_load_segments

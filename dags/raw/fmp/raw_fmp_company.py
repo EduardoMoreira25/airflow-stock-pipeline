@@ -157,7 +157,7 @@ with DAG(
         retries=3,
         retry_delay=timedelta(minutes=5),
         retry_exponential_backoff=True,
-        execution_timeout=timedelta(hours=4),
+        execution_timeout=timedelta(hours=6),
     )
 
     task_trigger_bronze = TriggerDagRunOperator(
