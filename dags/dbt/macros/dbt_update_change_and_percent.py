@@ -3,6 +3,7 @@ from cosmos.operators.local import DbtRunOperationLocalOperator
 from cosmos import ProfileConfig
 from cosmos.profiles import PostgresUserPasswordProfileMapping
 from datetime import datetime
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 profile_config=ProfileConfig(
     profile_name="stock_pipeline",
@@ -31,3 +32,11 @@ with DAG(
         macro_name="calculate_change",
         emit_datasets=False,
     )
+
+    task_trigger_telegram_alert = TriggerDagRunOperator(
+        task_id="telegram_scan",
+        trigger_dag_id="telegram_momentum_alert",
+        wait_for_completion=True,
+    )
+
+    run_macro_change_and_percent >> task_trigger_telegram_alert

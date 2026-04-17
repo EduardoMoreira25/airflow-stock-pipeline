@@ -88,7 +88,6 @@ default_args = {
 
 daily_args = {
     **default_args,
-    "retry_delay": timedelta(minutes=2),
     "retry_exponential_backoff": True,
     "retry_delay": timedelta(minutes=15),
 }
