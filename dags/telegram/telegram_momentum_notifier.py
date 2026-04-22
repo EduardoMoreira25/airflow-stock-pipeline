@@ -152,7 +152,7 @@ def find_and_notify():
             days_since   = int(row["days_since_last"]) if pd.notna(row["days_since_last"]) else "N/A"
             num_days     = int(row["num_5pct_days_in_lookback"]) if pd.notna(row["num_5pct_days_in_lookback"]) else "N/A"
 
-            url = f"http://192.168.1.102:5173/company/{symbol}"
+            url = f"http://192.168.1.102/stocks/company/{symbol}"
 
             message = (
                 f"<b>{symbol}</b> +<b>{change_pct:.2f}%</b> on {target_date}\n\n"
