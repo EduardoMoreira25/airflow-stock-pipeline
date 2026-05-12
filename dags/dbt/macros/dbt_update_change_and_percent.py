@@ -39,4 +39,10 @@ with DAG(
         wait_for_completion=True,
     )
 
-    run_macro_change_and_percent >> task_trigger_telegram_alert
+    task_trigger_sector_industry_insert = TriggerDagRunOperator(
+        task_id="sector_and_industry_insert",
+        trigger_dag_id="dbt_g_sector_and_industry",
+        wait_for_completion=True,
+    )
+
+    run_macro_change_and_percent >> [task_trigger_telegram_alert,task_trigger_sector_industry_insert]

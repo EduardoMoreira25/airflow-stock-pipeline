@@ -247,4 +247,6 @@ with DAG(
         wait_for_completion=True,
     )
 
+    
+
     task_get_symbols >> task_fetch_and_store >> task_trigger_dbt_mkt_cap

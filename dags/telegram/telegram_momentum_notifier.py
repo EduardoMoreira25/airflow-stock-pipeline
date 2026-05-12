@@ -15,6 +15,7 @@ import logging
 from airflow import DAG
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +136,7 @@ def find_and_notify():
 
         # ── Step 4: Send Telegram notifications ───────────────────────────
         summary = (
-            f"🔔 <b>Continuation Momentum Scanner</b>\n\n"
+            f"🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔\n🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔\n <b>Continuation Momentum Scanner</b>\n🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔\n🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔🔔\n\n"
             f"Found <b>{len(df_continuation)}</b> stocks on {target_date}\n\n"
             f"Average gain: {df_continuation['change_percent'].mean():.2f}%\n"
             f"Biggest gainer: {df_continuation.loc[df_continuation['change_percent'].idxmax(), 'symbol']} "
@@ -157,10 +158,6 @@ def find_and_notify():
             message = (
                 f"<b>{symbol}</b> +<b>{change_pct:.2f}%</b> on {target_date}\n\n"
                 f"<a href=\"{url}\">📊 View {symbol} Details</a>\n\n"
-                f"- Open:  ${row['open']:.2f}\n"
-                f"- High:  ${row['high']:.2f}\n"
-                f"- Low:   ${row['low']:.2f}\n"
-                f"- Close: ${row['close']:.2f}\n"
                 f"- Volume: {int(volume):,}\n"
                 f"- Market Cap: ${market_cap:,.0f}\n\n"
                 f"- Last 5% day: {last_day}\n"
@@ -193,3 +190,11 @@ with DAG(
         python_callable=find_and_notify,
         execution_timeout=timedelta(minutes=10),
     )
+
+    task_trigger_watchlist_alerts = TriggerDagRunOperator(
+        task_id="trigger_watchlist_alerts",
+        trigger_dag_id="telegram_watchlist_notifier",
+        wait_for_completion=False,
+    )
+
+    telegram_scan >> task_trigger_watchlist_alerts
