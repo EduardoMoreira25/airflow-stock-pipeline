@@ -150,6 +150,13 @@ def fetch_and_store_financials(**context):
         with open(path, "w") as fh:
             json.dump(data, fh)
 
+    # FMP API response fields that are metadata, not segment revenue values
+    _SEGMENT_META_KEYS = {
+        "date", "period", "calendarYear", "fiscalYear",
+        "symbol", "reportedCurrency", "acceptedDate",
+        "fillingDate", "cik", "link", "finalLink",
+    }
+
     def _flatten_segments(api_records, segment_type, symbol, now_ts):
         """
         Transform FMP segment API response into flat records grouped by
@@ -182,7 +189,7 @@ def fetch_and_store_financials(**context):
 
             records = []
             for key, value in item.items():
-                if key == "date" or value is None:
+                if key in _SEGMENT_META_KEYS or value is None:
                     continue
                 records.append({
                     "symbol": symbol,
